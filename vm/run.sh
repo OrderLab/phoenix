@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd $__ORBIT_ROOT_DIR
+cd $__PHX_ROOT_DIR
 
 if [[ $1 = '-d' ]]; then
 	DBG='-s -S'  # gdb debug options (port 1234; stop cpu)
