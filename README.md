@@ -34,6 +34,8 @@ If debugging kernel with GDB is needed, type `make menuconfig` in the kernel rep
 ./vm/mkimg.sh
 ```
 
+If you find downloading slow or stuck, it is possible that the IPv6 configuration on your network is faulty. Fix the network config or disable IPv6.
+
 ## Running VM
 
 ### Import Shorthands
