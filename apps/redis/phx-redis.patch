@@ -1,0 +1,259 @@
+diff --git a/src/Makefile b/src/Makefile
+index bf3994a..74d2fbc 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -17,14 +17,14 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+ uname_M := $(shell sh -c 'uname -m 2>/dev/null || echo not')
+ CLANG := $(findstring clang,$(shell sh -c '$(CC) --version | head -1'))
+ OPTIMIZATION?=-O3
+-ifeq ($(OPTIMIZATION),-O3)
+-       ifeq (clang,$(CLANG))
+-               REDIS_CFLAGS+=-flto
+-       else
+-               REDIS_CFLAGS+=-flto=auto
+-       endif
+-       REDIS_LDFLAGS+=-O3 -flto
+-endif
++# ifeq ($(OPTIMIZATION),-O3)
++#      ifeq (clang,$(CLANG))
++#              REDIS_CFLAGS+=-flto
++#      else
++#              REDIS_CFLAGS+=-flto=auto
++#      endif
++#      REDIS_LDFLAGS+=-O3 -flto
++# endif
+ DEPENDENCY_TARGETS=hiredis linenoise lua hdr_histogram fpconv
+ NODEPS:=clean distclean
+
+@@ -116,10 +116,10 @@ endif
+ # Override default settings if possible
+ -include .make-settings
+
+-SYSROOT=/root/glibc/rel-merge
++SYSROOT=/users/yzjing/phoenix-glibc/build/install
+ FINAL_CFLAGS=$(STD) $(WARN) $(OPT) $(DEBUG) $(CFLAGS) $(REDIS_CFLAGS)
+ FINAL_LDFLAGS=$(LDFLAGS) $(REDIS_LDFLAGS) $(DEBUG)
+-FINAL_LIBS=-lm -L ${SYSROOT}/lib -I ${SYSROOT}/include -I /root/phx/userlib/lib/include -Wl,--rpath=${SYSROOT}/lib -Wl,--dynamic-linker=${SYSROOT}/lib/ld-linux-x86-64.so.2 -lphx -lpthread
++FINAL_LIBS=-lm -L ${SYSROOT}/lib -I ${SYSROOT}/include -Wl,--rpath=${SYSROOT}/lib -Wl,--dynamic-linker=${SYSROOT}/lib/ld-linux-x86-64.so.2 -lphx -lpthread
+ DEBUG=-g -ggdb
+
+ # Linux ARM32 needs -latomic at linking time
+diff --git a/src/debug.c b/src/debug.c
+index 684f692..1ac8296 100644
+--- a/src/debug.c
++++ b/src/debug.c
+@@ -1158,6 +1158,8 @@ void _serverPanic(const char *file, int line, const char *msg, ...) {
+         printCrashReport();
+     }
+
++    fprintf(stderr, "FAULT: %lld\n", ustime());
++
+     // remove the signal handler so on abort() we will output the crash report.
+     removeSignalHandlers();
+     bugReportEnd(0, 0);
+@@ -2168,6 +2170,8 @@ void sigsegvHandler(int sig, siginfo_t *info, void *secret) {
+         dumpCodeAroundEIP(eip);
+ #endif
+
++    fprintf(stderr, "FAULT: %lld\n", ustime());
++
+     bugReportEnd(1, sig);
+ }
+
+diff --git a/src/listpack.c b/src/listpack.c
+index 2b940f4..5629c3b 100644
+--- a/src/listpack.c
++++ b/src/listpack.c
+@@ -1339,11 +1339,11 @@ int lpValidateNext(unsigned char *lp, unsigned char **pp, size_t lpbytes) {
+
+ /* Validate that the entry doesn't reach outside the listpack allocation. */
+ static inline void lpAssertValidEntry(unsigned char* lp, size_t lpbytes, unsigned char *p) {
+-    // assert(lpValidateNext(lp, &p, lpbytes));
+-    if (lpValidateNext(lp, &p, lpbytes))
++    assert(lpValidateNext(lp, &p, lpbytes));
++    /* if (lpValidateNext(lp, &p, lpbytes))
+         return;
+     int *x = NULL;
+-    *x = 100;
++    *x = 100; */
+ }
+
+ /* Validate the integrity of the data structure.
+diff --git a/src/rdb.c b/src/rdb.c
+index e670d26..2f6f662 100644
+--- a/src/rdb.c
++++ b/src/rdb.c
+@@ -1524,9 +1524,6 @@ int rdbSave(int req, char *filename, rdbSaveInfo *rsi, int rdbflags) {
+         stopSaving(0);
+         return C_ERR;
+     }
+-
+-    // don't
+-    return C_OK;
+
+     /* Use RENAME to make sure the DB file is changed atomically only
+      * if the generate DB file is ok. */
+@@ -1564,9 +1561,6 @@ int rdbSaveBackground(int req, char *filename, rdbSaveInfo *rsi, int rdbflags) {
+
+     if (hasActiveChildProcess()) return C_ERR;
+
+-    // don't
+-    return C_OK;
+-
+     server.stat_rdb_saves++;
+
+     server.dirty_before_bgsave = server.dirty;
+diff --git a/src/server.c b/src/server.c
+index 3875977..9fcd3f4 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -2559,19 +2559,19 @@ void makeThreadKillable(void) {
+
+ void phx_fault_handler(int sig) {
+     (void)sig;
++    fprintf(stderr, "FAULT: %lld\n", ustime());
+
+-    fprintf(stderr, "PHX: Trying to continue running using the preserved data\n");
++    // fprintf(stderr, "PHX: Trying to continue running using the preserved data\n");
+
+     //fprintf(stderr, "before crash ustime %lld\n", ustime());
+
+     //fprintf(stderr, "phx recovery info addr = %p\n", __phx_recovery_info);
+-    fprintf(stderr, "server db = %p\n", server.db);
++    // fprintf(stderr, "server db = %p\n", server.db);
+     __phx_recovery_info->db = server.db;
+
+-    fprintf(stderr, "Exec, see you in the new process.\n");
+-
+-    __phx_recovery_info->t1 = clock();
+-    fprintf(stderr, "Before restart, t1 = %lf\n", (double)__phx_recovery_info->t1);
++    // fprintf(stderr, "Exec, see you in the new process.\n");
++    // __phx_recovery_info->t1 = clock();
++    // fprintf(stderr, "Before restart, t1 = %lf\n", (double)__phx_recovery_info->t1);
+
+     phx_restart_multi(__phx_recovery_info, NULL, NULL, 0);
+
+@@ -2634,10 +2634,10 @@ void initServer(void) {
+     resetReplicationBuffer();
+
+     /* Make sure the locale is set on startup based on the config file. */
+-    if (setlocale(LC_COLLATE,server.locale_collate) == NULL) {
++    /* if (setlocale(LC_COLLATE,server.locale_collate) == NULL) {
+         serverLog(LL_WARNING, "Failed to configure LOCALE for invalid locale name.");
+         exit(1);
+-    }
++    } */
+
+     createSharedObjects();
+     adjustOpenFilesLimit();
+@@ -3785,10 +3785,10 @@ int commandCheckExistence(client *c, sds *err) {
+     if (!err)
+         return 0;
+     // phx
+-    if (!strcasecmp(c->argv[0]->ptr, "get|")) {
++    if (lookupCommandBySds(c->argv[0]->ptr)) {
+         addReplySubcommandSyntaxError(c);
+         return C_OK;
+-    }
++#if 0
+     if (isContainerCommandBySds(c->argv[0]->ptr)) {
+         /* If we can't find the command but argv[0] by itself is a command
+          * it means we're dealing with an invalid subcommand. Print Help. */
+@@ -3798,6 +3798,7 @@ int commandCheckExistence(client *c, sds *err) {
+         *err = sdscatprintf(*err, "unknown subcommand '%.128s'. Try %s HELP.
+",
+                             (char *)c->argv[1]->ptr, cmd);
+         sdsfree(cmd);
++#endif
+     } else {
+         sds args = sdsempty();
+         int i;
+@@ -6516,6 +6517,8 @@ int changeListener(connListener *listener) {
+ static void sigShutdownHandler(int sig) {
+     char *msg;
+
++    fprintf(stderr, "FAULT: %lld\n", ustime());
++
+     switch (sig) {
+     case SIGINT:
+         msg = "Received SIGINT scheduling shutdown...";
+@@ -6544,6 +6547,13 @@ static void sigShutdownHandler(int sig) {
+     server.last_sig_received = sig;
+ }
+
++void phx_segfault_test(int sig, siginfo_t *info, void *secret) {
++    UNUSED(secret);
++    UNUSED(info);
++    fprintf(stderr, "FAULT: %lld\n", ustime());
++    phx_fault_handler(sig);
++}
++
+ void setupSignalHandlers(void) {
+     struct sigaction act;
+
+@@ -6565,6 +6575,8 @@ void setupSignalHandlers(void) {
+         sigaction(SIGILL, &act, NULL);
+         sigaction(SIGABRT, &act, NULL);
+     }
++    // act.sa_sigaction = phx_segfault_test;
++    // sigaction(SIGSEGV, &act, NULL);
+     return;
+ }
+
+@@ -6869,9 +6881,9 @@ void redisOutOfMemoryHandler(size_t allocation_size) {
+         allocation_size);
+
+     // phx
+-    fprintf(stderr, "Redis aborting for OUT OF MEMORY. Allocating %zu bytes!",
++    /* fprintf(stderr, "Redis aborting for OUT OF MEMORY. Allocating %zu bytes!",
+         allocation_size);
+-    raise(SIGSEGV);
++    raise(SIGSEGV); */
+     /*
+     serverPanic("Redis aborting for OUT OF MEMORY. Allocating %zu bytes!",
+         allocation_size);
+@@ -7078,12 +7090,23 @@ int main(int argc, char **argv, char **envp) {
+     int j;
+     char config_from_stdin = 0;
+
+-    clock_t t6 = clock();
+-    fprintf(stderr, "Before phx init, t6 = %lf\n", (double)t6);
++    /* char buf[1024];
++    size_t size;
++    FILE *fp = fopen("/proc/self/maps", "r");
++    while (fp && (size = fread(buf, 1, 1024, fp)) > 0) {
++        fwrite(buf, 1, size, stderr);
++       fprintf(stderr, "size %lld\n", size);
++    }
++    fclose(fp); */
++
++    fprintf(stderr, "RESTART: %lld\n", ustime());
++
++    // clock_t t6 = clock();
++    // fprintf(stderr, "Before phx init, t6 = %lf\n", (double)t6);
+
+     __phx_recovery_info = phx_init(argc, (const char **)argv, (const char **)envp, phx_fault_handler);
+
+-    clock_t t2 = clock();
++    /* clock_t t2 = clock();
+     if (__phx_recovery_info != NULL) {
+         fprintf(stderr, "t2 = %lf\n", (double)t2);
+         double duration = ((double)(t2 - __phx_recovery_info->t1)) / CLOCKS_PER_SEC;
+@@ -7093,7 +7116,7 @@ int main(int argc, char **argv, char **envp) {
+             fclose(phx);
+         }
+         printf("time result = %f\n", duration);
+-    }
++    } */
+
+     if (__phx_recovery_info == NULL){
+         fprintf(stderr, "Creating __phx_recovery_info\n");
+@@ -7427,6 +7450,8 @@ int main(int argc, char **argv, char **envp) {
+
+     fprintf(stderr, "servicable time utime %lld\n", ustime());
+     phx_finish_recovery();
++
++    fprintf(stderr, "NEWREQ: %lld\n", ustime());
+     aeMain(server.el);
+     aeDeleteEventLoop(server.el);
+     return 0;

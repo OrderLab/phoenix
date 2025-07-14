@@ -1,0 +1,56 @@
+diff --git a/src/server.c b/src/server.c
+index c30577d..44d8cc4 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -5095,6 +5095,14 @@ static void sigShutdownHandler(int sig) {
+     server.shutdown_asap = 1;
+ }
+ 
++void phx_segfault_test(int sig, siginfo_t *info, void *secret) {
++    UNUSED(secret);
++    UNUSED(info);
++    (void)sig;
++    fprintf(stderr, "FAULT: %lld\n", ustime());
++    _exit(1);
++}
++
+ void setupSignalHandlers(void) {
+     struct sigaction act;
+ 
+@@ -5108,7 +5116,7 @@ void setupSignalHandlers(void) {
+ 
+     sigemptyset(&act.sa_mask);
+     act.sa_flags = SA_NODEFER | SA_RESETHAND | SA_SIGINFO;
+-    act.sa_sigaction = sigsegvHandler;
++    act.sa_sigaction = phx_segfault_test;
+     if(server.crashlog_enabled) {
+         sigaction(SIGSEGV, &act, NULL);
+         sigaction(SIGBUS, &act, NULL);
+@@ -5254,8 +5262,9 @@ void loadDataFromDisk(void) {
+ void redisOutOfMemoryHandler(size_t allocation_size) {
+     serverLog(LL_WARNING,"Out Of Memory allocating %zu bytes!",
+         allocation_size);
+-    serverPanic("Redis aborting for OUT OF MEMORY. Allocating %zu bytes!", 
+-        allocation_size);
++    phx_segfault_test(SIGSEGV,NULL,NULL);
++    // serverPanic("Redis aborting for OUT OF MEMORY. Allocating %zu bytes!", 
++    //     allocation_size);
+ }
+ 
+ void redisSetProcTitle(char *title) {
+@@ -5369,6 +5378,7 @@ int main(int argc, char **argv) {
+     struct timeval tv;
+     int j;
+     char config_from_stdin = 0;
++    fprintf(stderr, "RESTART: %lld\n", ustime());
+ 
+ #ifdef REDIS_TEST
+     if (argc == 3 && !strcasecmp(argv[1], "test")) {
+@@ -5580,6 +5590,7 @@ int main(int argc, char **argv) {
+     redisSetCpuAffinity(server.server_cpulist);
+     setOOMScoreAdj(-1);
+ 
++    fprintf(stderr, "NEWREQ: %lld\n", ustime());
+     aeMain(server.el);
+     aeDeleteEventLoop(server.el);
+     return 0;
