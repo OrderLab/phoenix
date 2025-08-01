@@ -1,7 +1,13 @@
 diff --git a/bin/ycsb b/bin/ycsb
-index b5c85e35..462f4f09 100755
+index b5c85e35..ccae5004 100755
 --- a/bin/ycsb
 +++ b/bin/ycsb
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ #
+ # Copyright (c) 2012 - 2020 YCSB contributors. All rights reserved.
+ #
 @@ -16,6 +16,7 @@
  # LICENSE file.
  #
@@ -140,10 +146,10 @@ index 8a27cc93..a8ecd1ca 100644
    public static final Status NOT_IMPLEMENTED = new Status("NOT_IMPLEMENTED", "The operation is not " +
        "implemented for the current binding.");
 diff --git a/redis/src/main/java/site/ycsb/db/RedisClient.java b/redis/src/main/java/site/ycsb/db/RedisClient.java
-index 2de9ad23..d25c53c4 100644
+index 2de9ad23..a7522e86 100644
 --- a/redis/src/main/java/site/ycsb/db/RedisClient.java
 +++ b/redis/src/main/java/site/ycsb/db/RedisClient.java
-@@ -29,18 +29,20 @@ import site.ycsb.DB;
+@@ -29,18 +29,21 @@ import site.ycsb.DB;
  import site.ycsb.DBException;
  import site.ycsb.Status;
  import site.ycsb.StringByteIterator;
@@ -161,6 +167,7 @@ index 2de9ad23..d25c53c4 100644
 +// import redis.clients.jedis.exceptions.JedisConnectionException;
  
  import java.io.Closeable;
++import java.io.FileWriter;
  import java.io.IOException;
  import java.util.HashMap;
  import java.util.Map;
@@ -169,25 +176,44 @@ index 2de9ad23..d25c53c4 100644
  import java.util.Iterator;
  import java.util.List;
  import java.util.Properties;
-@@ -54,7 +56,7 @@ import java.util.Vector;
+@@ -54,13 +57,15 @@ import java.util.Vector;
   */
  public class RedisClient extends DB {
  
 -  private JedisCommands jedis;
 +  private JedisPool jedisPool;
++  private FileWriter phxDumpPipe;
  
    public static final String HOST_PROPERTY = "redis.host";
    public static final String PORT_PROPERTY = "redis.port";
-@@ -76,6 +78,8 @@ public class RedisClient extends DB {
+   public static final String PASSWORD_PROPERTY = "redis.password";
+   public static final String CLUSTER_PROPERTY = "redis.cluster";
+   public static final String TIMEOUT_PROPERTY = "redis.timeout";
++  public static final String PHX_DUMP_PIPE_PROPERTY = "redis.phxdumppipe";
+ 
+   public static final String INDEX_KEY = "_indices";
+ 
+@@ -76,6 +81,19 @@ public class RedisClient extends DB {
      }
      String host = props.getProperty(HOST_PROPERTY);
  
++    String phxDumpPipePath = props.getProperty(PHX_DUMP_PIPE_PROPERTY);
++    if (phxDumpPipePath != null) {
++      try {
++        this.phxDumpPipe = new FileWriter(phxDumpPipePath, true); // true for append mode
++      } catch (IOException e) {
++        throw new DBException("Failed to open phx dump pipe: " + e.getMessage());
++      }
++    } else {
++      System.err.println("phx dump pipe is not enabled");
++    }
++
 +    jedisPool = new JedisPool(host, port);
 +    /*
      boolean clusterEnabled = Boolean.parseBoolean(props.getProperty(CLUSTER_PROPERTY));
      if (clusterEnabled) {
        Set<HostAndPort> jedisClusterNodes = new HashSet<>();
-@@ -95,11 +99,12 @@ public class RedisClient extends DB {
+@@ -95,11 +113,15 @@ public class RedisClient extends DB {
      if (password != null) {
        ((BasicCommands) jedis).auth(password);
      }
@@ -197,11 +223,46 @@ index 2de9ad23..d25c53c4 100644
    public void cleanup() throws DBException {
      try {
 -      ((Closeable) jedis).close();
++      if (phxDumpPipe != null) {
++        phxDumpPipe.close();
++      }
 +      ((Closeable) jedisPool).close();
      } catch (IOException e) {
        throw new DBException("Closing connection failed.");
      }
-@@ -120,52 +125,70 @@ public class RedisClient extends DB {
+@@ -115,57 +137,111 @@ public class RedisClient extends DB {
+     return key.hashCode();
+   }
+ 
++  /**
++   * Write key and field data to the phx dump pipe with proper synchronization.
++   */
++  private synchronized void writeToPhxDumpPipe(String key, Map<String, String> values) {
++    if (phxDumpPipe == null) {
++      return;
++    }
++
++    try {
++      // Write the key line
++      phxDumpPipe.write("PHXKEY:" + key + "\n");
++
++      // Write each field
++      for (Map.Entry<String, String> entry : values.entrySet()) {
++        String fieldName = entry.getKey();
++        String fieldValue = entry.getValue();
++        phxDumpPipe.write("PHXFIELDNAME:" + fieldName + "\nPHXFIELDVALUE:" + fieldValue + "\n");
++      }
++
++      // Flush to ensure data is written immediately
++      phxDumpPipe.flush();
++    } catch (IOException e) {
++      // Log error but don't throw to avoid breaking the main operation
++      System.err.println("Error writing to phx dump pipe: " + e.getMessage());
++    }
++  }
++
+   // XXX jedis.select(int index) to switch to `table`
+ 
    @Override
    public Status read(String table, String key, Set<String> fields,
        Map<String, ByteIterator> result) {
@@ -211,13 +272,6 @@ index 2de9ad23..d25c53c4 100644
 -      String[] fieldArray =
 -          (String[]) fields.toArray(new String[fields.size()]);
 -      List<String> values = jedis.hmget(key, fieldArray);
--
--      Iterator<String> fieldIterator = fields.iterator();
--      Iterator<String> valueIterator = values.iterator();
--
--      while (fieldIterator.hasNext() && valueIterator.hasNext()) {
--        result.put(fieldIterator.next(),
--            new StringByteIterator(valueIterator.next()));
 +    try (Jedis jedis = jedisPool.getResource()) {
 +      if (fields == null) {
 +        StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(key));
@@ -225,10 +279,15 @@ index 2de9ad23..d25c53c4 100644
 +        String[] fieldArray =
 +            (String[]) fields.toArray(new String[fields.size()]);
 +        List<String> values = jedis.hmget(key, fieldArray);
-+
+ 
+-      Iterator<String> fieldIterator = fields.iterator();
+-      Iterator<String> valueIterator = values.iterator();
 +        Iterator<String> fieldIterator = fields.iterator();
 +        Iterator<String> valueIterator = values.iterator();
-+
+ 
+-      while (fieldIterator.hasNext() && valueIterator.hasNext()) {
+-        result.put(fieldIterator.next(),
+-            new StringByteIterator(valueIterator.next()));
 +        while (fieldIterator.hasNext() && valueIterator.hasNext()) {
 +          result.put(fieldIterator.next(),
 +              new StringByteIterator(valueIterator.next()));
@@ -251,7 +310,11 @@ index 2de9ad23..d25c53c4 100644
 -      jedis.zadd(INDEX_KEY, hash(key), key);
 -      return Status.OK;
 +    try (Jedis jedis = jedisPool.getResource()) {
-+      if (jedis.hmset(key, StringByteIterator.getStringMap(values))
++      // Write to phx dump pipe before Redis operation
++      Map<String, String> valuesMap = StringByteIterator.getStringMap(values);
++      writeToPhxDumpPipe(key, valuesMap);
++
++      if (jedis.hmset(key, valuesMap)
 +          .equals("OK")) {
 +        // jedis.zadd(INDEX_KEY, hash(key), key);
 +        return Status.OK;
@@ -268,6 +331,7 @@ index 2de9ad23..d25c53c4 100644
 -    return jedis.del(key) == 0 && jedis.zrem(INDEX_KEY, key) == 0 ? Status.ERROR
 -        : Status.OK;
 +    try (Jedis jedis = jedisPool.getResource()) {
++      // TODO: write to phx dump pipe
 +      return jedis.del(key) == 0 /* && jedis.zrem(INDEX_KEY, key) == 0 */ ? Status.ERROR
 +          : Status.OK;
 +    } catch (Exception e) {
@@ -281,7 +345,11 @@ index 2de9ad23..d25c53c4 100644
 -    return jedis.hmset(key, StringByteIterator.getStringMap(values))
 -        .equals("OK") ? Status.OK : Status.ERROR;
 +    try (Jedis jedis = jedisPool.getResource()) {
-+      return jedis.hmset(key, StringByteIterator.getStringMap(values))
++      // Write to phx dump pipe before Redis operation
++      Map<String, String> valuesMap = StringByteIterator.getStringMap(values);
++      writeToPhxDumpPipe(key, valuesMap);
++
++      return jedis.hmset(key, valuesMap)
 +          .equals("OK") ? Status.OK : Status.ERROR;
 +    } catch (Exception e) {
 +      return Status.ERROR;
@@ -296,7 +364,7 @@ index 2de9ad23..d25c53c4 100644
      Set<String> keys = jedis.zrangeByScore(INDEX_KEY, hash(startkey),
          Double.POSITIVE_INFINITY, 0, recordcount);
  
-@@ -177,6 +200,7 @@ public class RedisClient extends DB {
+@@ -177,6 +253,7 @@ public class RedisClient extends DB {
      }
  
      return Status.OK;

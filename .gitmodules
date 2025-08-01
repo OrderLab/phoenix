@@ -10,3 +10,6 @@
 [submodule "glibc"]
 	path = glibc
 	url = https://github.com/OrderLab/phoenix-glibc.git
+[submodule "tools/ycsb"]
+	path = tools/ycsb
+	url = https://github.com/brianfrankcooper/YCSB.git

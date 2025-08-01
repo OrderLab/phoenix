@@ -1,0 +1,7 @@
+#%Module1.0
+
+conflict ycsb
+
+set prefix $env(HOME)/phoenix/tools/ycsb-bin
+
+prepend-path PATH ${prefix}/bin
