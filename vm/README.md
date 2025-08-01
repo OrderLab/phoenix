@@ -1,4 +1,6 @@
-# Phoenix
+# QEMU Setup Guide
+
+This document gives a guide to create, start/stop a QEMU VM machine, with kernel developed on the host machine and runtime environment in the guest machine. For evaluation purpose, running on bare metal or other hypervisors is preferred.
 
 **TOC**
 - [Host Setup](#hots-setup)
