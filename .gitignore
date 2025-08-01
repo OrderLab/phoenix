@@ -1,2 +1,5 @@
+/*.buildinfo
+/*.deb
+/*.changes
 vm/mountpoint/
 vm/*.img
