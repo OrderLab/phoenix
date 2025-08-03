@@ -1,0 +1,8 @@
+#%Module1.0
+
+conflict polygraph
+
+set prefix $env(HOME)/phoenix/tools/polygraph-bin
+
+prepend-path PATH ${prefix}/bin
+prepend-path MANPATH ${prefix}/share/man

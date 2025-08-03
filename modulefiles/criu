@@ -1,0 +1,9 @@
+#%Module1.0
+
+conflict criu
+
+set prefix $env(HOME)/phoenix/tools/criu-bin
+
+prepend-path PATH ${prefix}/bin
+prepend-path PATH ${prefix}/sbin
+prepend-path MANPATH ${prefix}/share/man

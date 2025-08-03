@@ -2,7 +2,7 @@
 
 sudo apt update
 
-misc=(xterm neovim git psmisc procps tmux)
+misc=(xterm neovim git psmisc procps tmux environment-modules tclsh)
 kernelbuild=(libncurses-dev gawk flex bison openssl libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf dwarves)
 llvm=(libstdc++-12-dev \
 	llvm-15 llvm-15-dev llvm-15-linker-tools llvm-15-runtime llvm-15-tools \
@@ -11,11 +11,17 @@ build=(cmake build-essential \
 	libssl-dev libncurses5-dev pkg-config python3 zlib1g-dev curl cgroup-tools \
 	automake autotools-dev libedit-dev libjemalloc-dev libncurses-dev \
 	libpcre3-dev libtool libtool-bin python3-docutils python3-sphinx cpio \
-	environment-modules tclsh libcurl4-openssl-dev python3-pip python3-pandas \
-	libgmp-dev libmpfr-dev texinfo maven)
+	libcurl4-openssl-dev python3-pip python3-pandas \
+	libgmp-dev libmpfr-dev texinfo maven asciidoc-base)
+criu=(libprotobuf-dev libprotobuf-c-dev protobuf-c-compiler protobuf-compiler python3-protobuf
+	uuid-dev libgnutls28-dev libbsd-dev iproute2 libnftables-dev libcap-dev
+	libnl-3-dev libnet-dev)
+polygraph=(libldns-dev)
 #binutil
 # --allow-change-held-packages is kinda dangerous.. but idk why dkms is holding it back
-sudo apt install -y --allow-change-held-packages ${misc[@]} ${kernelbuild[@]} ${llvm[@]} ${build[@]}
+sudo apt install -y --allow-change-held-packages ${misc[@]} ${kernelbuild[@]} \
+    ${llvm[@]} ${build[@]} ${polygraph[@]}
+sudo apt install -y --no-install-recommends ${criu[@]}
 
 # Should work with ASLR as well but just to be smooth..
 if ! grep -q "^kernel.randomize_va_space" /etc/sysctl.conf; then
