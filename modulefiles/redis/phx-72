@@ -1,0 +1,7 @@
+#%Module1.0
+
+conflict redis
+
+set prefix $env(HOME)/phoenix/apps/redis/rel-phx-72
+
+prepend-path PATH ${prefix}/bin
