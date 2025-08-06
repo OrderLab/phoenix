@@ -5,7 +5,7 @@ cd $SCRIPT_DIR
 
 set -e
 
-wget https://www.web-polygraph.org/downloads/srcs/polygraph-4.13.0-src.tgz
+wget -O polygraph-4.13.0-src.tgz https://www.web-polygraph.org/downloads/srcs/polygraph-4.13.0-src.tgz
 tar xf polygraph-4.13.0-src.tgz
 cd polygraph-4.13.0
 ./configure --prefix=$SCRIPT_DIR/polygraph-bin
