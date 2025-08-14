@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 cd $SCRIPT_DIR/../
 
-cd kernel
+cd kernel && git checkout -f add-syscall || ( echo "Cannot checkout add-syscall branch"; exit 1 )
 
 if ! (git status | grep -q include/net/tcp.h); then
     set -x
