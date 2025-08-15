@@ -91,7 +91,7 @@ function runserver {
 	redis-server $CONF
 }
 
-(runserver > "$SERVERLOG") &
+(runserver 2>&1 | tee "$SERVERLOG") &
 sleep 3
 pid=$!
 

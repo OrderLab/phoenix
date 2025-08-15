@@ -89,7 +89,7 @@ function runserver {
 	echo $?
 }
 
-(runserver > "$SERVERLOG") &
+(runserver 2>&1 | tee "$SERVERLOG") &
 sleep 3
 pid=$!
 
