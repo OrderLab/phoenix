@@ -3,7 +3,12 @@
 import re
 import sys
 from statistics import mean, stdev
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--min-start', type=int)
+
+args = parser.parse_args()
 
 vals = []
 
@@ -21,7 +26,8 @@ def dprint(*args, **kwargs):
 
 def find_drop(values):
     drop_start = None
-    for i in range(len(values) - 1):
+    min_start = 0 if args.min_start is None else args.min_start
+    for i in range(min_start, len(values) - 1):
         if values[i] > 10 * values[i+1]:
             drop_start = i+1
             dprint(f'Drop start {i+1}s')
