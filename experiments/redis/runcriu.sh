@@ -105,7 +105,7 @@ function dumpserver() {
 }
 
 function checkpoint() {
-	for i in `seq 10`; do
+	for i in `seq 2`; do
 		sleep 30
 		dumpserver $1
 	done
