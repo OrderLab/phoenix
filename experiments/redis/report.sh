@@ -1,7 +1,6 @@
 #!/bin/bash
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-cd $SCRIPT_DIR
 
 if ! [ -d "$1" ]; then
 	echo "Usage: $0 <result_folder>"
@@ -70,7 +69,8 @@ for mode in vanilla builtin criu phx; do
 			if [ "$mode" = criu ]; then
 				criuflag='--min-start=100'
 			fi
-			./finddrop.py $criuflag < "$f" 2>/dev/null || (echo "Find drop failed on $f!"; ./finddrop.py < "$f")
+			$SCRIPT_DIR/finddrop.py $criuflag < "$f" 2>/dev/null \
+				|| (echo "Find drop failed on $f!"; $SCRIPT_DIR/finddrop.py < "$f")
 		fi
 	done
 	) | awk "$awkscript"
