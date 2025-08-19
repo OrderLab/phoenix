@@ -3,7 +3,9 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 if ! [ -d "$1" ]; then
+	echo "Cannot find result directory $1"
 	echo "Usage: $0 <result_folder>"
+	exit 1
 fi
 
 folder="$1"
